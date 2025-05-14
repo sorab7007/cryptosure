@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: Unlicensed
-
 pragma solidity >0.7.0 <=0.9.0;
 
 contract CampaignFactory {
@@ -16,62 +15,87 @@ contract CampaignFactory {
     );
 
     function createCampaign(
-        string memory campaignTitle, 
-        uint requiredCampaignAmount, 
-        string memory imgURI, 
+        string memory campaignTitle,
+        uint requiredCampaignAmount,
+        string memory imgURI,
         string memory category,
-        string memory storyURI) public
-    {
+        string memory storyURI
+    ) public {
+        require(requiredCampaignAmount > 0, "Amount must be greater than 0");
 
         Campaign newCampaign = new Campaign(
-            campaignTitle, requiredCampaignAmount, imgURI, storyURI, msg.sender);
-        
+            campaignTitle,
+            requiredCampaignAmount,
+            imgURI,
+            storyURI,
+            msg.sender,
+            category
+        );
 
         deployedCampaigns.push(address(newCampaign));
 
         emit campaignCreated(
-            campaignTitle, 
-            requiredCampaignAmount, 
-            msg.sender, 
+            campaignTitle,
+            requiredCampaignAmount,
+            msg.sender,
             address(newCampaign),
             imgURI,
             block.timestamp,
             category
         );
+    }
 
+    function getDeployedCampaigns() public view returns (address[] memory) {
+        return deployedCampaigns;
     }
 }
-
 
 contract Campaign {
     string public title;
     uint public requiredAmount;
     string public image;
     string public story;
+    string public category;
     address payable public owner;
     uint public receivedAmount;
 
-    event donated(address indexed donar, uint indexed amount, uint indexed timestamp);
+    event Donated(address indexed donor, uint indexed amount, uint indexed timestamp);
 
     constructor(
-        string memory campaignTitle, 
-        uint requiredCampaignAmount, 
+        string memory campaignTitle,
+        uint requiredCampaignAmount,
         string memory imgURI,
         string memory storyURI,
-        address campaignOwner
+        address campaignOwner,
+        string memory campaignCategory
     ) {
         title = campaignTitle;
         requiredAmount = requiredCampaignAmount;
         image = imgURI;
         story = storyURI;
+        category = campaignCategory;
         owner = payable(campaignOwner);
     }
 
     function donate() public payable {
-        require(requiredAmount > receivedAmount, "required amount fullfilled");
-        owner.transfer(msg.value);
-        receivedAmount += msg.value;
-        emit donated(msg.sender, msg.value, block.timestamp);
+        require(receivedAmount < requiredAmount, "Campaign fully funded");
+        require(msg.value > 0, "Donation must be greater than zero");
+
+        uint amountToAccept = msg.value;
+        uint overAmount = 0;
+
+        if (receivedAmount + msg.value > requiredAmount) {
+            amountToAccept = requiredAmount - receivedAmount;
+            overAmount = msg.value - amountToAccept;
+        }
+
+        owner.transfer(amountToAccept);
+        receivedAmount += amountToAccept;
+
+        emit Donated(msg.sender, amountToAccept, block.timestamp);
+
+        if (overAmount > 0) {
+            payable(msg.sender).transfer(overAmount);
+        }
     }
 }
-
